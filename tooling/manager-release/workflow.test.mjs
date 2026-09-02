@@ -31,6 +31,16 @@ describe("ThunderManager release workflow policy", () => {
         assert.match(workflow, /^    permissions:\n      contents: write$/m);
     });
 
+    it("publishes only tag commits contained in reviewed main", () => {
+        assert.match(workflow, /fetch-depth: 0/);
+        assert.match(workflow, /git fetch --no-tags origin "\+refs\/heads\/main:refs\/remotes\/origin\/main"/);
+        assert.match(workflow, /git merge-base --is-ancestor "\$GITHUB_SHA" refs\/remotes\/origin\/main/);
+
+        const ancestryGuard = workflow.indexOf("- name: Require the release commit to be on reviewed main");
+        const publication = workflow.indexOf("gh release create");
+        assert(ancestryGuard >= 0 && publication > ancestryGuard);
+    });
+
     it("keeps signing state ephemeral and stages all assets before stable publication", () => {
         assert.match(workflow, /RELEASE_KEYSTORE: \$\{\{ runner\.temp \}\}/);
         assert.doesNotMatch(workflow, /^    env:/m);
