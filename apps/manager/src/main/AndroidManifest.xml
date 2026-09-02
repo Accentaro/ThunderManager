@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <queries>
+        <package android:name="com.discord" />
+        <package android:name="com.discord.beta" />
+        <package android:name="com.discord.canary" />
+        <package android:name="dev.thunder.app" />
+    </queries>
+
+    <application
+        android:name=".ThunderApplication"
+        android:allowBackup="false"
+        android:description="@string/app_description"
+        android:icon="@drawable/thunder_brand"
+        android:label="@string/app_name"
+        android:roundIcon="@drawable/thunder_brand"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Thunder"
+        android:usesCleartextTraffic="false">
+        <activity
+            android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/manager_update_paths" />
+        </provider>
+    </application>
+</manifest>

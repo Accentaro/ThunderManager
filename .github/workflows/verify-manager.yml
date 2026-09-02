@@ -1,0 +1,59 @@
+name: verify-manager
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: manager-verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  clean-checkout:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
+        with:
+          version: 11.21.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          package-manager-cache: false
+
+      - name: Set up Java
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: 17.0.19+10
+          cache: gradle
+
+      - name: Install pinned Android SDK components
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Install locked tooling dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Enable the Gradle wrapper
+        run: chmod +x gradlew
+
+      - name: Verify Manager tooling, hygiene, Android tests, lint, and debug build
+        run: pnpm verify
+
+      - name: Verify the minified staging build
+        run: pnpm verify:staging

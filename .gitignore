@@ -1,0 +1,77 @@
+# JavaScript dependencies and caches
+node_modules/
+.pnpm-store/
+*.tsbuildinfo
+coverage/
+
+# Gradle, Kotlin, Android Studio, and local Android SDK state
+.gradle/
+.kotlin/
+**/build/
+local.properties
+.idea/
+*.iml
+
+# Build and release output
+dist/
+out/
+release/
+releases/
+reports/
+
+# Local test, device, research, and split-staging material
+/.tmp/
+/artifacts/
+/test-artifacts/
+/assets/
+/private-corpus/
+/.release-repos/
+/split-repos/
+
+# Root-level device captures and UI dumps
+/*.png
+/*.jpg
+/*.jpeg
+/*.gif
+/*.webp
+/*.mp4
+/*.mov
+/*.webm
+/*.xml
+
+# Android packages, proprietary host output, and compiled binaries
+*.apk
+*.aab
+*.apks
+*.xapk
+*.idsig
+*.bundle
+*.dex
+*.odex
+*.vdex
+*.class
+*.aar
+*.so
+*.dll
+*.exe
+
+# Signing material and local secrets
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pkcs12
+*.pem
+*.key
+.env
+.env.*
+!.env.example
+.release-signing-required
+
+# Logs, crash reports, and operating-system/editor state
+*.log
+hs_err_pid*
+.DS_Store
+Thumbs.db
+.vscode/
+.claude/settings.local.json

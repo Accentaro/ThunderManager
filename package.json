@@ -1,0 +1,18 @@
+{
+  "name": "thunder-manager",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.21.0",
+  "scripts": {
+    "build:manager": "node tooling/run-gradle.mjs :apps:manager:assembleDebug",
+    "check:repository-hygiene": "node tooling/check-repository-hygiene.mjs",
+    "test:android": "node tooling/run-gradle.mjs :apps:manager:testDebugUnitTest :android:package-inspector:testDebugUnitTest :android:patch-domain:testDebugUnitTest :android:signing:testDebugUnitTest :android:package-installer:testDebugUnitTest :android:patch-orchestrator:testDebugUnitTest :android:bootstrap:testDebugUnitTest :android:injection-custom:testDebugUnitTest :android:update-client:testDebugUnitTest",
+    "lint:android": "node tooling/run-gradle.mjs :apps:manager:lintDebug :android:package-installer:lintDebug :android:patch-orchestrator:lintDebug :android:bootstrap:lintDebug :android:injection-custom:lintDebug :android:update-client:lintDebug",
+    "test:repository-hygiene": "node --test tooling/repository-hygiene/*.test.mjs",
+    "test:tooling": "pnpm run test:repository-hygiene && pnpm run test:manager-release",
+    "test:manager-release": "node --test tooling/manager-release/*.test.mjs",
+    "release:manager": "node tooling/manager-release/cli.mjs package",
+    "verify:staging": "node tooling/run-gradle.mjs :apps:manager:assembleStaging :apps:manager:lintStaging",
+    "verify": "pnpm run test:tooling && pnpm run check:repository-hygiene && pnpm run test:android && pnpm run lint:android && pnpm run build:manager"
+  }
+}

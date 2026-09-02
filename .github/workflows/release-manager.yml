@@ -1,0 +1,232 @@
+name: release-manager
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: manager-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.repository == 'Accentaro/ThunderManager'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    env:
+      GRADLE_USER_HOME: ${{ runner.temp }}/thunder-manager-gradle-${{ github.run_id }}-${{ github.run_attempt }}
+      RELEASE_KEYSTORE: ${{ runner.temp }}/thunder-manager-release-${{ github.run_id }}-${{ github.run_attempt }}.jks
+    steps:
+      - name: Check out the release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+
+      - name: Set up Java
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: 17.0.19+10
+
+      - name: Install pinned Android SDK components
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Reject forbidden and oversized tracked files
+        run: node tooling/check-repository-hygiene.mjs
+
+      - name: Test manager release packaging
+        run: node --test tooling/manager-release/*.test.mjs
+
+      - name: Require the canonical stable release tag
+        run: node tooling/manager-release/cli.mjs check-tag --tag "$GITHUB_REF_NAME"
+
+      - name: Refuse to replace an existing release
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const tag = context.ref.replace("refs/tags/", "");
+            const releases = await github.paginate(github.rest.repos.listReleases, {
+              ...context.repo,
+              per_page: 100,
+            });
+            if (releases.some((release) => release.tag_name === tag)) {
+              core.setFailed("A GitHub Release already exists for " + tag + "; published manager releases are immutable.");
+            }
+
+      - name: Enable the Gradle wrapper
+        run: chmod +x gradlew
+
+      - name: Verify manager and Android modules
+        run: >-
+          ./gradlew --no-daemon --no-build-cache --no-configuration-cache
+          :apps:manager:testDebugUnitTest
+          :android:package-inspector:testDebugUnitTest
+          :android:patch-domain:testDebugUnitTest
+          :android:signing:testDebugUnitTest
+          :android:package-installer:testDebugUnitTest
+          :android:patch-orchestrator:testDebugUnitTest
+          :android:bootstrap:testDebugUnitTest
+          :android:injection-custom:testDebugUnitTest
+          :android:update-client:testDebugUnitTest
+          :apps:manager:lintRelease
+
+      - name: Decode the protected release keystore
+        shell: bash
+        env:
+          THUNDER_RELEASE_KEYSTORE_BASE64: ${{ secrets.THUNDER_RELEASE_KEYSTORE_BASE64 }}
+          THUNDER_RELEASE_STORE_PASSWORD: ${{ secrets.THUNDER_RELEASE_STORE_PASSWORD }}
+          THUNDER_RELEASE_KEY_ALIAS: ${{ secrets.THUNDER_RELEASE_KEY_ALIAS }}
+          THUNDER_RELEASE_KEY_PASSWORD: ${{ secrets.THUNDER_RELEASE_KEY_PASSWORD }}
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          require_secret() {
+            local name="$1"
+            local value="${!name:-}"
+            if [[ -z "$value" || "$value" == *$'\n'* || "$value" == *$'\r'* ]]; then
+              echo "Required release secret $name is missing or malformed" >&2
+              exit 1
+            fi
+          }
+          mask_value() {
+            local value="$1"
+            value="${value//'%'/'%25'}"
+            value="${value//$'\r'/'%0D'}"
+            value="${value//$'\n'/'%0A'}"
+            printf '::add-mask::%s\n' "$value"
+          }
+          for name in \
+            THUNDER_RELEASE_KEYSTORE_BASE64 \
+            THUNDER_RELEASE_STORE_PASSWORD \
+            THUNDER_RELEASE_KEY_ALIAS \
+            THUNDER_RELEASE_KEY_PASSWORD
+          do
+            require_secret "$name"
+          done
+          mask_value "$THUNDER_RELEASE_STORE_PASSWORD"
+          mask_value "$THUNDER_RELEASE_KEY_PASSWORD"
+          mask_value "$THUNDER_RELEASE_KEY_ALIAS"
+          if (( ${#THUNDER_RELEASE_KEYSTORE_BASE64} > 2097152 )); then
+            echo "Release keystore secret exceeds its size bound" >&2
+            exit 1
+          fi
+          partial="$RELEASE_KEYSTORE.partial"
+          rm -f -- "$partial"
+          printf '%s' "$THUNDER_RELEASE_KEYSTORE_BASE64" | base64 --decode --strict > "$partial"
+          size="$(stat -c '%s' "$partial")"
+          if (( size < 1 || size > 1048576 )); then
+            rm -f -- "$partial"
+            echo "Decoded release keystore is outside its size bound" >&2
+            exit 1
+          fi
+          chmod 600 "$partial"
+          mv -- "$partial" "$RELEASE_KEYSTORE"
+
+      - name: Build the minified signed release APK
+        env:
+          THUNDER_RELEASE_STORE_FILE: ${{ env.RELEASE_KEYSTORE }}
+          THUNDER_RELEASE_STORE_PASSWORD: ${{ secrets.THUNDER_RELEASE_STORE_PASSWORD }}
+          THUNDER_RELEASE_KEY_ALIAS: ${{ secrets.THUNDER_RELEASE_KEY_ALIAS }}
+          THUNDER_RELEASE_KEY_PASSWORD: ${{ secrets.THUNDER_RELEASE_KEY_PASSWORD }}
+        run: >-
+          ./gradlew --no-daemon --no-build-cache --no-configuration-cache
+          :apps:manager:assembleRelease
+
+      - name: Verify release APK identity, signature, and bounds
+        id: verify-apk
+        shell: bash
+        env:
+          THUNDER_RELEASE_STORE_PASSWORD: ${{ secrets.THUNDER_RELEASE_STORE_PASSWORD }}
+          THUNDER_RELEASE_KEY_ALIAS: ${{ secrets.THUNDER_RELEASE_KEY_ALIAS }}
+        run: |
+          set -Eeuo pipefail
+          mapfile -t apks < <(find apps/manager/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print)
+          if (( ${#apks[@]} != 1 )); then
+            echo "Expected exactly one release APK, found ${#apks[@]}" >&2
+            exit 1
+          fi
+          apk="${apks[0]}"
+          apksigner="$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner"
+          aapt2="$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt2"
+          [[ -x "$apksigner" && -x "$aapt2" ]]
+
+          expected_version="$(sed -n 's/^versionName=//p' apps/manager/version.properties)"
+          expected_code="$(sed -n 's/^versionCode=//p' apps/manager/version.properties)"
+          package_identity="$("$aapt2" dump badging "$apk" | sed -n "s/^package: name='\([^']*\)' versionCode='\([^']*\)' versionName='\([^']*\)'.*/\1|\2|\3/p")"
+          IFS='|' read -r actual_package actual_code actual_version <<<"$package_identity"
+          [[ "$actual_package" == "dev.thunder.manager" ]] || { echo "Release APK package identity is invalid" >&2; exit 1; }
+          [[ "$actual_version" == "$expected_version" ]] || { echo "Release APK versionName is invalid" >&2; exit 1; }
+          [[ "$actual_code" == "$expected_code" ]] || { echo "Release APK versionCode is invalid" >&2; exit 1; }
+
+          apk_size="$(stat -c '%s' "$apk")"
+          if (( apk_size < 1 || apk_size > 268435456 )); then
+            echo "Release APK is outside its 256 MiB size bound" >&2
+            exit 1
+          fi
+
+          verification="$("$apksigner" verify --verbose --print-certs --min-sdk-version 28 "$apk")"
+          grep -Fq 'Verified using v1 scheme (JAR signing): false' <<<"$verification"
+          grep -Fq 'Verified using v3 scheme (APK Signature Scheme v3): true' <<<"$verification"
+          mapfile -t apk_certificates < <(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' <<<"$verification")
+          if (( ${#apk_certificates[@]} != 1 )) || grep -q '^Signer #2 ' <<<"$verification"; then
+            echo "Release APK must contain exactly one signing certificate" >&2
+            exit 1
+          fi
+          apk_certificate="$(tr '[:upper:]' '[:lower:]' <<<"${apk_certificates[0]}" | tr -d '\r\n')"
+          keystore_certificate="$(keytool -exportcert -keystore "$RELEASE_KEYSTORE" -alias "$THUNDER_RELEASE_KEY_ALIAS" -storepass:env THUNDER_RELEASE_STORE_PASSWORD 2>/dev/null | sha256sum | awk '{print $1}')"
+          expected_certificate="$(tr -d '\r\n' < apps/manager/release-certificate.sha256)"
+          [[ "$expected_certificate" =~ ^[0-9a-f]{64}$ ]] || { echo "Pinned production certificate digest is invalid" >&2; exit 1; }
+          [[ "$keystore_certificate" == "$expected_certificate" ]] || { echo "Protected release keystore does not match the permanent production signer" >&2; exit 1; }
+          [[ "$apk_certificate" == "$expected_certificate" ]] || { echo "Release APK does not use the permanent production signer" >&2; exit 1; }
+
+          apk_sha256="$(sha256sum "$apk" | awk '{print $1}')"
+          printf 'Verified %s %s (%s), %s bytes, SHA-256 %s\n' "$actual_package" "$actual_version" "$actual_code" "$apk_size" "$apk_sha256"
+          printf 'apk=%s\n' "$apk" >> "$GITHUB_OUTPUT"
+
+      - name: Generate immutable release artifacts
+        env:
+          VERIFIED_APK: ${{ steps.verify-apk.outputs.apk }}
+        run: >-
+          node tooling/manager-release/cli.mjs package
+          --tag "$GITHUB_REF_NAME"
+          --apk "$VERIFIED_APK"
+          --output build/manager-release
+          --repository Accentaro/ThunderManager
+
+      - name: Verify release checksums
+        working-directory: build/manager-release
+        run: sha256sum --check SHA256SUMS
+
+      - name: Publish the stable GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "$GITHUB_REF_NAME"
+          --repo "$GITHUB_REPOSITORY"
+          --verify-tag
+          --title "ThunderManager $GITHUB_REF_NAME"
+          --generate-notes
+          --latest
+          build/manager-release/ThunderManager-*.apk
+          build/manager-release/release.json
+          build/manager-release/SHA256SUMS
+
+      - name: Remove temporary signing and Gradle state
+        if: always()
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rm -f -- "$RELEASE_KEYSTORE" "$RELEASE_KEYSTORE.partial"
+          rm -rf -- "$GRADLE_USER_HOME"

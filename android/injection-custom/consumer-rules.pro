@@ -1,0 +1,1 @@
+-keep public class dev.thunder.injection.custom.PurposeBuiltInjectionBackend { public *; }

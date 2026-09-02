@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Thunder</string>
+    <string name="app_description">Builds a separate Thunder app while leaving official Discord untouched.</string>
+</resources>
