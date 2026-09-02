@@ -88,7 +88,7 @@ internal fun ManagerScreen(
         color = MaterialTheme.colorScheme.background,
         contentColor = MaterialTheme.colorScheme.onBackground,
     ) {
-        Box(
+        Column(
             Modifier
                 .fillMaxSize()
                 .background(
@@ -101,23 +101,15 @@ internal fun ManagerScreen(
                     ),
                 ),
         ) {
-            Image(
-                painter = painterResource(R.drawable.thunder_cat_console),
-                contentDescription = null,
-                contentScale = ContentScale.Fit,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .height(245.dp)
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-            )
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
                 contentPadding = PaddingValues(
                     start = 24.dp,
                     top = 80.dp,
                     end = 24.dp,
-                    bottom = 245.dp,
+                    bottom = 20.dp,
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -182,6 +174,15 @@ internal fun ManagerScreen(
                     }
                 }
             }
+            Image(
+                painter = painterResource(R.drawable.thunder_cat_console),
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(245.dp)
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            )
         }
     }
 }
@@ -422,12 +423,6 @@ private fun Intro() {
                 modifier = Modifier.align(Alignment.CenterEnd).size(88.dp),
             )
         }
-        Text(
-            text = "Thunder builds its own app, so your official Discord keeps its Play Store signature and updates.",
-            style = MaterialTheme.typography.bodyMedium,
-            lineHeight = 22.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }
 
