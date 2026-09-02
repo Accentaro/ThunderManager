@@ -1,6 +1,8 @@
 # ThunderManager
 
-ThunderManager is the Android companion for [Thunder](https://github.com/Accentaro/Thunder). It creates and maintains a rootless `dev.thunder.app` clone beside an official Discord installation, without replacing or uninstalling that official app. ThunderManager and Thunder have independent versions and release histories.
+This is where you want to be if you wish to install thunder on your android phone, thunder is a modified version of discord with plugins/themes etc.
+
+ThunderManager is the Android installer for [Thunder](https://github.com/Accentaro/Thunder). It creates and maintains a rootless `dev.thunder.app` clone beside an official Discord installation, without replacing or uninstalling the official app. 
 
 ## Install and inject
 
