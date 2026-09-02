@@ -5,6 +5,7 @@ import { describe, it } from "node:test";
 
 const root = path.resolve(import.meta.dirname, "../..");
 const workflow = readFileSync(path.join(root, ".github/workflows/release-manager.yml"), "utf8");
+const wrapperProperties = readFileSync(path.join(root, "gradle/wrapper/gradle-wrapper.properties"), "utf8");
 
 describe("ThunderManager release workflow policy", () => {
     it("uses only the four documented repository secrets", () => {
@@ -33,6 +34,8 @@ describe("ThunderManager release workflow policy", () => {
     it("keeps signing state ephemeral and stages all assets before stable publication", () => {
         assert.match(workflow, /RELEASE_KEYSTORE: \$\{\{ runner\.temp \}\}/);
         assert.doesNotMatch(workflow, /^    env:/m);
+        assert.match(workflow, /base64 --decode > "\$partial"/);
+        assert.doesNotMatch(workflow, /base64 --decode --strict/);
         assert.match(workflow, /--no-build-cache --no-configuration-cache/);
         assert.match(workflow, /gh release create "\$GITHUB_REF_NAME"/);
         assert.match(workflow, /--verify-tag/);
@@ -52,5 +55,10 @@ describe("ThunderManager release workflow policy", () => {
         assert.match(workflow, /build-tools\/36\.0\.0\/apksigner/);
         assert.match(workflow, /Verified using v1 scheme \(JAR signing\): false/);
         assert.match(workflow, /Verified using v3 scheme \(APK Signature Scheme v3\): true/);
+    });
+
+    it("pins the Gradle wrapper distribution to its official SHA-256", () => {
+        assert.match(wrapperProperties, /distributionUrl=https\\:\/\/services\.gradle\.org\/distributions\/gradle-8\.14\.3-bin\.zip/);
+        assert.match(wrapperProperties, /distributionSha256Sum=bd71102213493060956ec229d946beee57158dbd89d0e62b91bca0fa2c5f3531/);
     });
 });

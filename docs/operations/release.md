@@ -32,7 +32,7 @@ the minified release. It then requires:
 - package ID `dev.thunder.manager`;
 - the canonical `versionName` and `versionCode`;
 - an APK between 1 byte and 256 MiB;
-- APK Signature Scheme v3, with v1 and v2 disabled; and
+- APK Signature Scheme v3 with v1 disabled (v2 may be omitted for the minSdk 28 output); and
 - exactly one APK certificate whose SHA-256 digest matches the certificate exported from the
   supplied keystore.
 
@@ -50,7 +50,7 @@ Thunder manager release packaging is fail-closed. A release cannot be emitted wi
 - `THUNDER_RELEASE_KEY_ALIAS`: signing-key alias;
 - `THUNDER_RELEASE_KEY_PASSWORD`: signing-key password.
 
-The keystore and credentials must remain outside the repository. The minSdk 28 release APK is verified with APK Signature Scheme v3, with v1 and v2 disabled. If the variables are incomplete, Android's `validateSigningRelease` task fails against the intentionally absent `.release-signing-required` sentinel.
+The keystore and credentials must remain outside the repository. Release verification requires APK Signature Scheme v3 and requires v1 to be disabled. The currently verified minSdk 28 APK is v3-only even though the Android signing configuration requests v2, v3, and v4; an additional valid v2 signature would not change the signer-continuity guarantee. If the variables are incomplete, Android's `validateSigningRelease` task fails against the intentionally absent `.release-signing-required` sentinel.
 
 ## Qualification sequence
 
@@ -60,7 +60,7 @@ The keystore and credentials must remain outside the repository. The minSdk 28 r
 4. Run `gradlew.bat :apps:manager:clean :apps:manager:assembleRelease :apps:manager:lintRelease`.
 5. Verify the APK with Android build-tools `apksigner verify --verbose --print-certs` and record its SHA-256 digest.
 6. Generate local release metadata only into a new empty directory:
-   `pnpm release:manager -- --tag vX.Y.Z --apk <verified-apk> --output <empty-directory>`.
+   `pnpm release:manager --tag vX.Y.Z --apk <verified-apk> --output <empty-directory>`.
 7. Inspect the manager APK. Require the purpose-built bootstrap/runtime assets and PackageInstaller
    receiver; reject all libxposed dependencies, Xposed metadata, and delete-package permissions.
 8. On a locked stock device, record official Discord's signer certificate, complete installed APK-set

@@ -127,7 +127,7 @@ jobs:
           fi
           partial="$RELEASE_KEYSTORE.partial"
           rm -f -- "$partial"
-          printf '%s' "$THUNDER_RELEASE_KEYSTORE_BASE64" | base64 --decode --strict > "$partial"
+          printf '%s' "$THUNDER_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$partial"
           size="$(stat -c '%s' "$partial")"
           if (( size < 1 || size > 1048576 )); then
             rm -f -- "$partial"
