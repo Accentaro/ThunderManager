@@ -101,11 +101,14 @@ export function inspectTrackedFile({ bytes, filePath, size }) {
     const repositoryPath = normalizedRepositoryPath(filePath);
     const segments = repositoryPath.split("/");
     const basename = segments.at(-1) ?? "";
+    const normalizedSegments = segments.map(segment => segment.toLowerCase());
+    const normalizedBasename = basename.toLowerCase();
     const extension = path.posix.extname(repositoryPath).toLowerCase();
     const violations = [];
 
-    const localSegment = segments.find(segment => LOCAL_ONLY_PATH_SEGMENTS.has(segment));
-    if (localSegment) {
+    const localSegmentIndex = normalizedSegments.findIndex(segment => LOCAL_ONLY_PATH_SEGMENTS.has(segment));
+    if (localSegmentIndex !== -1) {
+        const localSegment = segments[localSegmentIndex];
         violations.push({
             filePath: repositoryPath,
             kind: "local-only-path",
@@ -129,7 +132,10 @@ export function inspectTrackedFile({ bytes, filePath, size }) {
         });
     }
 
-    if (basename === "local.properties" || (basename.startsWith(".env") && basename !== ".env.example")) {
+    if (
+        normalizedBasename === "local.properties" ||
+        (normalizedBasename.startsWith(".env") && normalizedBasename !== ".env.example")
+    ) {
         violations.push({
             filePath: repositoryPath,
             kind: "local-configuration",
@@ -236,7 +242,7 @@ export function checkRepository(repositoryRoot) {
             });
             continue;
         }
-        const bytes = stat.size <= 1024 * 1024 ? readFileSync(absolutePath) : undefined;
+        const bytes = stat.size <= MAX_TRACKED_FILE_BYTES ? readFileSync(absolutePath) : undefined;
         violations.push(...inspectTrackedFile({ bytes, filePath: normalized, size: stat.size }));
     }
 

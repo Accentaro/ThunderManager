@@ -55,6 +55,20 @@ describe("repository hygiene policy", () => {
         assert.equal(JSON.stringify(violations).includes("redacted"), false);
     });
 
+    it("treats local-only path segments and configuration basenames case-insensitively", () => {
+        assert(inspectTrackedFile({ filePath: "BuIlD/output.txt", size: 1 })
+            .some(violation => violation.kind === "local-only-path"));
+        assert(inspectTrackedFile({ filePath: "config/LOCAL.PROPERTIES", size: 1 })
+            .some(violation => violation.kind === "local-configuration"));
+        assert(inspectTrackedFile({ filePath: "config/.EnV.Production", size: 1 })
+            .some(violation => violation.kind === "local-configuration"));
+        assert.equal(
+            inspectTrackedFile({ filePath: "config/.ENV.EXAMPLE", size: 1 })
+                .some(violation => violation.kind === "local-configuration"),
+            false,
+        );
+    });
+
     it("detects machine-specific user paths", () => {
         const localPath = ["C:", "Users", "person", "Android", "Sdk"].join("\\");
         const violations = inspectTrackedFile({
@@ -90,6 +104,25 @@ describe("repository hygiene policy", () => {
                 () => assertIndependentRepositoryRoot(child),
                 /Refusing to scan the enclosing repository/,
             );
+        } finally {
+            await rm(repositoryRoot, { force: true, recursive: true });
+        }
+    });
+
+    it("scans tracked files between 1 and 5 MiB for private-key markers", async () => {
+        const repositoryRoot = await temporaryRepository();
+        try {
+            const privateKeyHeader = ["-----BEGIN", "PRIVATE KEY-----"].join(" ");
+            const bytes = Buffer.concat([
+                Buffer.alloc(2 * 1024 * 1024, "x"),
+                Buffer.from(`\n${privateKeyHeader}\nredacted\n`),
+            ]);
+            await writeFile(path.join(repositoryRoot, "large-credential.txt"), bytes);
+            git(repositoryRoot, "add", "large-credential.txt");
+
+            const result = checkRepository(repositoryRoot);
+            assert(result.violations.some(violation =>
+                violation.filePath === "large-credential.txt" && violation.kind === "private-key-material"));
         } finally {
             await rm(repositoryRoot, { force: true, recursive: true });
         }
