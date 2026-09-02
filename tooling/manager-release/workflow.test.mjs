@@ -32,6 +32,7 @@ describe("ThunderManager release workflow policy", () => {
 
     it("keeps signing state ephemeral and stages all assets before stable publication", () => {
         assert.match(workflow, /RELEASE_KEYSTORE: \$\{\{ runner\.temp \}\}/);
+        assert.doesNotMatch(workflow, /^    env:/m);
         assert.match(workflow, /--no-build-cache --no-configuration-cache/);
         assert.match(workflow, /gh release create "\$GITHUB_REF_NAME"/);
         assert.match(workflow, /--verify-tag/);
@@ -46,6 +47,7 @@ describe("ThunderManager release workflow policy", () => {
     });
 
     it("verifies the API 28 APK with pinned Android build tools", () => {
+        assert.match(workflow, /ANDROID_HOME\/cmdline-tools\/latest\/bin\/sdkmanager/);
         assert.match(workflow, /build-tools\/36\.0\.0\/aapt2/);
         assert.match(workflow, /build-tools\/36\.0\.0\/apksigner/);
         assert.match(workflow, /Verified using v1 scheme \(JAR signing\): false/);

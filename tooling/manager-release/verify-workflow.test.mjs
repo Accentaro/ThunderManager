@@ -18,6 +18,7 @@ describe("ThunderManager verification workflow policy", () => {
         assert.match(workflow, /^permissions:\n  contents: read$/m);
         assert.match(workflow, /persist-credentials: false/);
         assert.match(workflow, /pnpm install --frozen-lockfile/);
+        assert.match(workflow, /ANDROID_HOME\/cmdline-tools\/latest\/bin\/sdkmanager/);
         assert.match(workflow, /run: pnpm verify\n/);
         assert.match(workflow, /run: pnpm verify:staging\n/);
         assert.doesNotMatch(workflow, /THUNDER_RUNTIME_FILE|packages\/|build-mobile-runtime|verify:runtime/);

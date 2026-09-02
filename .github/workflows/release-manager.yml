@@ -19,9 +19,6 @@ jobs:
     timeout-minutes: 60
     permissions:
       contents: write
-    env:
-      GRADLE_USER_HOME: ${{ runner.temp }}/thunder-manager-gradle-${{ github.run_id }}-${{ github.run_attempt }}
-      RELEASE_KEYSTORE: ${{ runner.temp }}/thunder-manager-release-${{ github.run_id }}-${{ github.run_attempt }}.jks
     steps:
       - name: Check out the release tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -41,7 +38,7 @@ jobs:
           java-version: 17.0.19+10
 
       - name: Install pinned Android SDK components
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+        run: "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0"
 
       - name: Reject forbidden and oversized tracked files
         run: node tooling/check-repository-hygiene.mjs
@@ -69,6 +66,8 @@ jobs:
         run: chmod +x gradlew
 
       - name: Verify manager and Android modules
+        env:
+          GRADLE_USER_HOME: ${{ runner.temp }}/thunder-manager-gradle-${{ github.run_id }}-${{ github.run_attempt }}
         run: >-
           ./gradlew --no-daemon --no-build-cache --no-configuration-cache
           :apps:manager:testDebugUnitTest
@@ -85,6 +84,7 @@ jobs:
       - name: Decode the protected release keystore
         shell: bash
         env:
+          RELEASE_KEYSTORE: ${{ runner.temp }}/thunder-manager-release-${{ github.run_id }}-${{ github.run_attempt }}.jks
           THUNDER_RELEASE_KEYSTORE_BASE64: ${{ secrets.THUNDER_RELEASE_KEYSTORE_BASE64 }}
           THUNDER_RELEASE_STORE_PASSWORD: ${{ secrets.THUNDER_RELEASE_STORE_PASSWORD }}
           THUNDER_RELEASE_KEY_ALIAS: ${{ secrets.THUNDER_RELEASE_KEY_ALIAS }}
@@ -136,7 +136,9 @@ jobs:
 
       - name: Build the minified signed release APK
         env:
-          THUNDER_RELEASE_STORE_FILE: ${{ env.RELEASE_KEYSTORE }}
+          GRADLE_USER_HOME: ${{ runner.temp }}/thunder-manager-gradle-${{ github.run_id }}-${{ github.run_attempt }}
+          RELEASE_KEYSTORE: ${{ runner.temp }}/thunder-manager-release-${{ github.run_id }}-${{ github.run_attempt }}.jks
+          THUNDER_RELEASE_STORE_FILE: ${{ runner.temp }}/thunder-manager-release-${{ github.run_id }}-${{ github.run_attempt }}.jks
           THUNDER_RELEASE_STORE_PASSWORD: ${{ secrets.THUNDER_RELEASE_STORE_PASSWORD }}
           THUNDER_RELEASE_KEY_ALIAS: ${{ secrets.THUNDER_RELEASE_KEY_ALIAS }}
           THUNDER_RELEASE_KEY_PASSWORD: ${{ secrets.THUNDER_RELEASE_KEY_PASSWORD }}
@@ -148,6 +150,7 @@ jobs:
         id: verify-apk
         shell: bash
         env:
+          RELEASE_KEYSTORE: ${{ runner.temp }}/thunder-manager-release-${{ github.run_id }}-${{ github.run_attempt }}.jks
           THUNDER_RELEASE_STORE_PASSWORD: ${{ secrets.THUNDER_RELEASE_STORE_PASSWORD }}
           THUNDER_RELEASE_KEY_ALIAS: ${{ secrets.THUNDER_RELEASE_KEY_ALIAS }}
         run: |
@@ -226,6 +229,9 @@ jobs:
       - name: Remove temporary signing and Gradle state
         if: always()
         shell: bash
+        env:
+          GRADLE_USER_HOME: ${{ runner.temp }}/thunder-manager-gradle-${{ github.run_id }}-${{ github.run_attempt }}
+          RELEASE_KEYSTORE: ${{ runner.temp }}/thunder-manager-release-${{ github.run_id }}-${{ github.run_attempt }}.jks
         run: |
           set -Eeuo pipefail
           rm -f -- "$RELEASE_KEYSTORE" "$RELEASE_KEYSTORE.partial"
