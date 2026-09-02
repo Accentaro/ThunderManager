@@ -38,7 +38,10 @@ jobs:
           java-version: 17.0.19+10
 
       - name: Install pinned Android SDK components
-        run: "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+        run: >-
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          "platforms;android-36"
+          "build-tools;36.0.0"
 
       - name: Reject forbidden and oversized tracked files
         run: node tooling/check-repository-hygiene.mjs
