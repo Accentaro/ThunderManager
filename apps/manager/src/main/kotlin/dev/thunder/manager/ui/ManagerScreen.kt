@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -30,12 +31,15 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
@@ -46,6 +50,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import dev.thunder.manager.R
 import dev.thunder.manager.ManagerUpdatesUiState
 import dev.thunder.manager.ReleaseAvailability
@@ -55,11 +60,6 @@ import dev.thunder.manager.ThunderRuntimeDownloadState
 import dev.thunder.packageinspector.InstalledDiscordTarget
 import dev.thunder.packageinspector.PatchMarker
 import dev.thunder.updateclient.ManagerUpdateDownloadState
-
-private val ThunderInk = Color(0xFF29244F)
-private val ThunderPurple = Color(0xFF7166D5)
-private val ThunderButton = Color(0xFF9488E7)
-private val ThunderPeach = Color(0xFFF0D1C4)
 
 @Composable
 internal fun ManagerScreen(
@@ -83,6 +83,8 @@ internal fun ManagerScreen(
     onUpdateManager: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var signingIdentityOpen by rememberSaveable { mutableStateOf(false) }
+
     Surface(
         modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
@@ -116,10 +118,9 @@ internal fun ManagerScreen(
                 item { ThunderTopBar(onRefresh) }
                 item { Intro() }
                 item {
-                    SigningIdentityCard(
+                    SigningIdentityButton(
                         state = signingIdentity,
-                        onBackup = onBackupSigningIdentity,
-                        onRestore = onRestoreSigningIdentity,
+                        onClick = { signingIdentityOpen = true },
                     )
                 }
                 item {
@@ -182,6 +183,14 @@ internal fun ManagerScreen(
                     .fillMaxWidth()
                     .height(245.dp)
                     .padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+        }
+        if (signingIdentityOpen) {
+            SigningIdentityDialog(
+                state = signingIdentity,
+                onBackup = onBackupSigningIdentity,
+                onRestore = onRestoreSigningIdentity,
+                onDismiss = { signingIdentityOpen = false },
             )
         }
     }
@@ -268,11 +277,11 @@ private fun UpdateNoticeCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(17.dp))
             .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, ThunderPurple.copy(alpha = 0.24f), RoundedCornerShape(17.dp))
+            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.24f), RoundedCornerShape(17.dp))
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(title, color = ThunderInk, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+        Text(title, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
         Text(detail, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         error?.let {
             Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
@@ -282,7 +291,10 @@ private fun UpdateNoticeCard(
             enabled = enabled,
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = ThunderButton, contentColor = Color.White),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ),
         ) {
             Text(buttonLabel, fontWeight = FontWeight.Bold)
         }
@@ -310,74 +322,128 @@ private fun UpdateCheckMessage(message: String, error: Boolean) {
 }
 
 @Composable
-private fun SigningIdentityCard(
+private fun SigningIdentityButton(
+    state: SigningIdentityRecoveryUiState,
+    onClick: () -> Unit,
+) {
+    val statusColor = when (state.status) {
+        SigningIdentityStatus.CHECKING -> MaterialTheme.colorScheme.primary
+        SigningIdentityStatus.PROTECTED -> MaterialTheme.colorScheme.tertiary
+        SigningIdentityStatus.NOT_CREATED,
+        SigningIdentityStatus.RECOVERY_REQUIRED,
+        -> MaterialTheme.colorScheme.error
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.End,
+    ) {
+        TextButton(
+            onClick = onClick,
+            shape = RoundedCornerShape(14.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+        ) {
+            Box(
+                Modifier
+                    .size(8.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(statusColor),
+            )
+            Spacer(Modifier.size(8.dp))
+            Text(
+                text = "Signing identity",
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SigningIdentityDialog(
     state: SigningIdentityRecoveryUiState,
     onBackup: () -> Unit,
     onRestore: () -> Unit,
+    onDismiss: () -> Unit,
 ) {
     val protected = state.status == SigningIdentityStatus.PROTECTED
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(17.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, ThunderPurple.copy(alpha = 0.2f), RoundedCornerShape(17.dp))
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 420.dp),
+            shape = RoundedCornerShape(22.dp),
+            color = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            tonalElevation = 8.dp,
+            shadowElevation = 12.dp,
         ) {
-            Text("Signing identity", color = ThunderInk, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
-            StatusLabel(
-                label = when (state.status) {
-                    SigningIdentityStatus.CHECKING -> "Checking"
-                    SigningIdentityStatus.NOT_CREATED -> "Not created"
-                    SigningIdentityStatus.PROTECTED -> "Protected"
-                    SigningIdentityStatus.RECOVERY_REQUIRED -> "Restore required"
-                },
-                positive = protected,
-            )
-        }
-        Text(
-            text = when (state.status) {
-                SigningIdentityStatus.CHECKING -> "Checking the key used for in-place Thunder updates…"
-                SigningIdentityStatus.NOT_CREATED ->
-                    "Thunder creates this key during the first injection. Restore an existing backup first if this Manager was reinstalled."
-                SigningIdentityStatus.PROTECTED ->
-                    "Back this up once. The same identity is required to update the installed Thunder app without losing its data."
-                SigningIdentityStatus.RECOVERY_REQUIRED ->
-                    "Restore the matching backup before updating the existing Thunder app."
-            },
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        state.certificateSha256?.let { digest ->
-            Text(
-                text = "Signer ${digest.take(12)}…${digest.takeLast(12)}",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        state.message?.let { message ->
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (state.isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary,
-            )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TextButton(onClick = onBackup, enabled = protected && !state.busy) {
-                Text("Back up signing identity")
-            }
-            TextButton(onClick = onRestore, enabled = !state.busy) {
-                Text("Restore signing identity")
+            Column(
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "Signing identity",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                    )
+                    StatusLabel(
+                        label = when (state.status) {
+                            SigningIdentityStatus.CHECKING -> "Checking"
+                            SigningIdentityStatus.NOT_CREATED -> "Not created"
+                            SigningIdentityStatus.PROTECTED -> "Protected"
+                            SigningIdentityStatus.RECOVERY_REQUIRED -> "Restore required"
+                        },
+                        positive = protected,
+                    )
+                }
+                Text(
+                    text = when (state.status) {
+                        SigningIdentityStatus.CHECKING -> "Checking the key used for in-place Thunder updates…"
+                        SigningIdentityStatus.NOT_CREATED ->
+                            "Thunder creates this key during the first injection. Restore an existing backup first if this Manager was reinstalled."
+                        SigningIdentityStatus.PROTECTED ->
+                            "Back this up once. The same identity is required to update the installed Thunder app without losing its data."
+                        SigningIdentityStatus.RECOVERY_REQUIRED ->
+                            "Restore the matching backup before updating the existing Thunder app."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                state.certificateSha256?.let { digest ->
+                    Text(
+                        text = "Signer ${digest.take(12)}…${digest.takeLast(12)}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                state.message?.let { message ->
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (state.isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary,
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(onClick = onBackup, enabled = protected && !state.busy) {
+                        Text("Back up")
+                    }
+                    TextButton(onClick = onRestore, enabled = !state.busy) {
+                        Text("Restore")
+                    }
+                    TextButton(onClick = onDismiss) {
+                        Text("Close")
+                    }
+                }
             }
         }
     }
@@ -392,14 +458,23 @@ private fun ThunderTopBar(onRefresh: () -> Unit) {
     ) {
         Text(
             text = "Thunder",
-            color = ThunderInk,
+            color = MaterialTheme.colorScheme.onBackground,
             fontSize = 36.sp,
             fontWeight = FontWeight.ExtraBold,
         )
         TextButton(onClick = onRefresh, shape = RoundedCornerShape(14.dp)) {
-            Text("⟳", color = ThunderPurple, style = MaterialTheme.typography.titleLarge)
+            Text(
+                "⟳",
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.titleLarge,
+            )
             Spacer(Modifier.size(6.dp))
-            Text("Check for updates", color = ThunderPurple, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text(
+                "Check for updates",
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+            )
         }
     }
 }
@@ -410,7 +485,7 @@ private fun Intro() {
         Box(Modifier.fillMaxWidth()) {
             Text(
                 text = "A little storm\nbeside Discord.",
-                color = ThunderInk,
+                color = MaterialTheme.colorScheme.onBackground,
                 fontSize = 32.sp,
                 lineHeight = 36.sp,
                 fontWeight = FontWeight.Black,
@@ -433,7 +508,7 @@ private fun SectionHeading(title: String, detail: String) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Bottom,
     ) {
-        Text(title, color = ThunderInk, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+        Text(title, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
         Text(
             text = detail,
             style = MaterialTheme.typography.labelLarge,
@@ -530,13 +605,17 @@ private fun DiscordSourceRow(
         runCatching { context.packageManager.getApplicationIcon(target.packageName).toBoundedImageBitmap() }.getOrNull()
     }
     val shape = RoundedCornerShape(17.dp)
-    val background = if (selected) Color(0xFFF0F1F6) else MaterialTheme.colorScheme.surface
-    val outline = if (selected) ThunderPeach else ThunderPurple.copy(alpha = 0.2f)
+    val background = if (selected) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
+    val outline = if (selected) {
+        MaterialTheme.colorScheme.secondary
+    } else {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+    }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(6.dp, shape, ambientColor = ThunderPeach.copy(alpha = 0.24f))
+            .shadow(6.dp, shape, ambientColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.24f))
             .clip(shape)
             .background(background)
             .border(1.dp, outline, shape)
@@ -557,7 +636,7 @@ private fun DiscordSourceRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.titleMedium,
-                color = ThunderInk,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.ExtraBold,
             )
             Text(
@@ -653,7 +732,10 @@ private fun CloneAction(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
             contentPadding = PaddingValues(vertical = 12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = ThunderButton, contentColor = Color.White),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ),
         ) {
             Text("⚡  ${primaryAction.label()}", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)
         }
@@ -665,11 +747,11 @@ private fun CloneAction(
         ) {
             if (secondaryAction == ManagerSecondaryAction.REFRESH_THUNDER) {
                 TextButton(onClick = onSecondaryAction, shape = RoundedCornerShape(13.dp)) {
-                    Text("↻  Refresh Thunder", color = ThunderPurple, fontWeight = FontWeight.Bold)
+                    Text("↻  Refresh Thunder", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                 }
             }
             TextButton(onClick = onChooseApk, shape = RoundedCornerShape(13.dp)) {
-                Text("▣  Different Discord APK", color = ThunderPurple, fontWeight = FontWeight.Bold)
+                Text("▣  Different Discord APK", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
             }
         }
     }
