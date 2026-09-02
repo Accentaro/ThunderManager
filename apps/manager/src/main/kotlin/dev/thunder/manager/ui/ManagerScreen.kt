@@ -109,11 +109,11 @@ internal fun ManagerScreen(
                     .weight(1f),
                 contentPadding = PaddingValues(
                     start = 24.dp,
-                    top = 80.dp,
+                    top = 64.dp,
                     end = 24.dp,
-                    bottom = 20.dp,
+                    bottom = 12.dp,
                 ),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 item { ThunderTopBar(onRefresh) }
                 item { Intro() }
@@ -181,7 +181,7 @@ internal fun ManagerScreen(
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(245.dp)
+                    .height(225.dp)
                     .padding(horizontal = 8.dp, vertical = 4.dp),
             )
         }
