@@ -2,6 +2,15 @@
 
 This is where you want to be if you wish to install thunder on your android phone, thunder is a modified version of discord with plugins/themes etc.
 
+Thunder originally started as a joke and an experiment to see whether AI could actually build a client of this scale. We all expected it to fail. It didn’t. So here we are.
+
+Thunder is now around 95% AI built, with only a small amount of hand written code and manual changes. Its now at a point where it could be used as a daily client.
+
+The project will continue to be updated, but it is not intended to replace established clients maintained by experienced developers.
+
+If you want something more robust, I recommend Rain. It has great developers who actually know what they are doing.
+cocobo1 is the goat.
+
 ThunderManager is the Android installer for [Thunder](https://github.com/Accentaro/Thunder). It creates and maintains a rootless `dev.thunder.app` clone beside an official Discord installation, without replacing or uninstalling the official app. 
 
 ## Install and inject
